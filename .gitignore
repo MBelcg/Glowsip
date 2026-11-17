@@ -1,0 +1,21 @@
+
+# Archivos temporales de Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Archivos temporales de Flutter
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Archivos privados
+.env
+.env.*
+!.env.example
+
+# Archivos del editor
+.vscode/
+.idea/
