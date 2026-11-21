@@ -205,6 +205,13 @@ class _UsersPageState extends State<UsersPage> {
         foregroundColor: Colors.white,
         toolbarHeight: 80,
         title: const Text('Gestión de usuarios'),
+        flexibleSpace: Center(
+          child: Image.asset(
+            'assets/images/icono-gsip.png',
+            height: 45,
+            fit: BoxFit.contain,
+          ),
+        ),
         actions: [
           IconButton(
             onPressed: recargarUsuarios,

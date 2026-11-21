@@ -7,6 +7,7 @@ import '../widgets/auth_background.dart';
 import '../widgets/auth_card.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/primary_button.dart';
+import '../widgets/admin_drawer.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -89,6 +90,22 @@ class _RegisterPageState extends State<RegisterPage> {
     final admin = usuario is Map && usuario['tip_usu'] == 1;
 
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFE76B8B),
+        foregroundColor: Colors.white,
+        toolbarHeight: 80,
+        title: const Text('Registrar usuario'),
+        flexibleSpace: Center(
+          child: Image.asset(
+            'assets/images/icono-gsip.png',
+            height: 45,
+            fit: BoxFit.contain,
+          ),
+        ),
+      ),
+      drawer: admin && usuario is Map<String, dynamic>
+          ? AdminDrawer(usuario: usuario, rutaActual: '/register')
+          : null,
       body: AuthBackground(
         child: Center(
           child: AuthCard(
@@ -172,16 +189,6 @@ class _RegisterPageState extends State<RegisterPage> {
                 const SizedBox(height: 25),
 
                 PrimaryButton(text: 'REGISTRAR', onPressed: registrarUsuario),
-
-                const SizedBox(height: 15),
-
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-
-                  child: const Text('Ya tengo una cuenta'),
-                ),
               ],
             ),
           ),
