@@ -7,6 +7,7 @@ import 'post_detail_page.dart';
 import '../widgets/admin_drawer.dart';
 import '../widgets/auth_background.dart';
 import '../widgets/user_drawer.dart';
+import 'add_blog_page.dart';
 
 class BlogPage extends StatefulWidget {
   const BlogPage({super.key});
@@ -152,6 +153,64 @@ class _BlogPageState extends State<BlogPage> {
                   (post) => PostCard(
                     post: post,
                     admin: (usuarioActual['tip_usu'] as num? ?? 2).toInt() == 1,
+                    onEditar: () async {
+                      final actualizado = await Navigator.push<bool>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AddBlogPage(post: post),
+                          settings: RouteSettings(arguments: usuarioActual),
+                        ),
+                      );
+
+                      if (actualizado == true) {
+                        recargarPosts();
+                      }
+                    },
+                    onEliminar: () async {
+                      final confirmar = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Eliminar publicación'),
+                          content: const Text(
+                            '¿Estás seguro de que deseas eliminar esta publicación?',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('Cancelar'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              child: const Text('Eliminar'),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (confirmar == true) {
+                        try {
+                          await postService.eliminarPost(post.id);
+
+                          if (!mounted) return;
+
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Publicación eliminada correctamente',
+                              ),
+                            ),
+                          );
+
+                          recargarPosts();
+                        } catch (e) {
+                          if (!mounted) return;
+
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('No se pudo eliminar: $e')),
+                          );
+                        }
+                      }
+                    },
                     onTap: () {
                       Navigator.push(
                         context,

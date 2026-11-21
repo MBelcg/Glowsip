@@ -1,14 +1,14 @@
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
+
 import '../models/comentario_model.dart';
 
 class ComentarioService {
   static const String baseUrl = 'http://127.0.0.1:8000';
 
   Future<List<ComentarioModel>> obtenerComentarios() async {
-    final respuesta = await http.get(
-      Uri.parse('$baseUrl/comentarios'),
-    );
+    final respuesta = await http.get(Uri.parse('$baseUrl/comentarios'));
 
     if (respuesta.statusCode != 200) {
       throw Exception('Error al consultar comentarios');
@@ -17,17 +17,11 @@ class ComentarioService {
     final List<dynamic> datos = jsonDecode(respuesta.body);
 
     return datos
-        .map(
-          (json) => ComentarioModel.fromJson(
-            json as Map<String, dynamic>,
-          ),
-        )
+        .map((json) => ComentarioModel.fromJson(json as Map<String, dynamic>))
         .toList();
   }
 
-  Future<void> agregarComentario(
-    ComentarioModel comentario,
-  ) async {
+  Future<void> agregarComentario(ComentarioModel comentario) async {
     final respuesta = await http.post(
       Uri.parse('$baseUrl/comentarios'),
       headers: {'Content-Type': 'application/json'},
@@ -35,9 +29,30 @@ class ComentarioService {
     );
 
     if (respuesta.statusCode != 201) {
-      throw Exception(
-        'No se pudo registrar el comentario: ${respuesta.body}',
-      );
+      throw Exception('No se pudo registrar el comentario: ${respuesta.body}');
+    }
+  }
+
+  Future<void> actualizarComentario({
+    required int id,
+    required String comentario,
+  }) async {
+    final respuesta = await http.put(
+      Uri.parse('$baseUrl/comentarios/$id'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'comentario': comentario}),
+    );
+
+    if (respuesta.statusCode != 200) {
+      throw Exception('No se pudo actualizar el comentario');
+    }
+  }
+
+  Future<void> eliminarComentario(int id) async {
+    final respuesta = await http.delete(Uri.parse('$baseUrl/comentarios/$id'));
+
+    if (respuesta.statusCode != 200) {
+      throw Exception('No se pudo eliminar el comentario');
     }
   }
 }

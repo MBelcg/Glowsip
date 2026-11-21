@@ -60,4 +60,35 @@ class PostService {
         .map((json) => PostModel.fromJson(json as Map<String, dynamic>))
         .toList();
   }
+
+  Future<PostModel> actualizarPost({
+    required int id,
+    required String titulo,
+    required String descripcion,
+    String? tags,
+  }) async {
+    final respuesta = await http.put(
+      Uri.parse('$baseUrl/blog/$id'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'titulo': titulo,
+        'descripcion': descripcion,
+        'tags': tags,
+      }),
+    );
+
+    if (respuesta.statusCode != 200) {
+      throw Exception('Error al actualizar la publicación');
+    }
+
+    return PostModel.fromJson(jsonDecode(respuesta.body));
+  }
+
+  Future<void> eliminarPost(int id) async {
+    final respuesta = await http.delete(Uri.parse('$baseUrl/blog/$id'));
+
+    if (respuesta.statusCode != 200) {
+      throw Exception('Error al eliminar la publicación');
+    }
+  }
 }

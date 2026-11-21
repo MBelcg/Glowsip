@@ -17,10 +17,14 @@ from schemas import (
     UsuarioRespuesta,
     BlogRespuesta,
     BlogCrear,
+    BlogActualizar,
     ComentarioCrear,
     ComentarioRespuesta,
+    ComentarioActualizar,
     LoginRequest,
+    CambiarPassword,
 )
+
 
 password_hash = PasswordHash.recommended()
 
@@ -34,6 +38,7 @@ app = FastAPI(
     title="API GlowSip",
     lifespan=lifespan,
 )
+
 UPLOAD_DIR = Path(r"C:\xampp\htdocs\blog_web\uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
@@ -66,17 +71,29 @@ def iniciar_sesion(
 
     usuario = db.scalar(select(Usuario).where(Usuario.mail == correo))
 
-    # Se utiliza el mismo mensaje para no revelar
-    # si el correo esta registrado
     import bcrypt
 
-    if usuario is None or not bcrypt.checkpw(
-        datos.password.encode("utf-8"),
-        usuario.pass_hash.replace("$2y$", "$2b$", 1).encode("utf-8"),
-    ):
+    if usuario is None:
         raise HTTPException(
             status_code=401,
-            detail="Correo o contraseña incorrectos",
+            detail="Correo o contraseña incorrectos"
+        )
+
+    if usuario.pass_hash.startswith(("$2y$", "$2b$", "$2a$")):
+        password_correcta = bcrypt.checkpw(
+            datos.password.encode("utf-8"),
+            usuario.pass_hash.replace("$2y$", "$2b$", 1).encode("utf-8")
+        )
+    else:
+        password_correcta = password_hash.verify(
+            datos.password,
+            usuario.pass_hash
+        )
+
+    if not password_correcta:
+        raise HTTPException(
+            status_code=401,
+            detail="Correo o contraseña incorrectos"
         )
 
     # Devuelve únicamanet los datos públicos del usuario
@@ -88,17 +105,12 @@ def iniciar_sesion(
     }
 
 
-# Conserva debajo todos tus endpoints existentes:
-# @app.get("/usuarios")
-# @app.post("/usuarios")
-# etc.
-
 # USUARIOS
-
 
 @app.get("/usuarios", response_model=list[UsuarioRespuesta])
 def listar_usuarios(db: Session = Depends(obtener_sesion)):
     usuarios = db.scalars(select(Usuario).order_by(Usuario.id_usr)).all()
+
     return [
         {
             "id_usr": usuario.id_usr,
@@ -200,8 +212,47 @@ def eliminar_usuario(
     return {"mensaje": "Usuario eliminado correctamente"}
 
 
-# BLOG
+@app.put("/usuarios/{usuario_id}/password")
+def cambiar_password(
+    usuario_id: int,
+    datos: CambiarPassword,
+    db: Session = Depends(obtener_sesion),
+):
+    import bcrypt
 
+    usuario = db.get(Usuario, usuario_id)
+
+    if usuario is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Usuario no encontrado",
+        )
+
+    if usuario.pass_hash.startswith(("$2y$", "$2b$", "$2a$")):
+        password_correcta = bcrypt.checkpw(
+            datos.password_actual.encode("utf-8"),
+            usuario.pass_hash.replace("$2y$", "$2b$", 1).encode("utf-8")
+        )
+    else:
+        password_correcta = password_hash.verify(
+            datos.password_actual,
+            usuario.pass_hash
+        )
+
+    if not password_correcta:
+        raise HTTPException(
+            status_code=400,
+            detail="La contraseña actual es incorrecta",
+        )
+
+    usuario.pass_hash = password_hash.hash(datos.password_nueva)
+
+    db.commit()
+
+    return {"mensaje": "Contraseña actualizada correctamente"}
+
+
+# BLOG
 
 @app.get("/blog", response_model=list[BlogRespuesta])
 def listar_blog(db: Session = Depends(obtener_sesion)):
@@ -213,21 +264,23 @@ async def crear_blog(
     titulo: str = Form(...),
     descripcion: str = Form(...),
     tags: str = Form(""),
-    imagen: UploadFile = File(...),
+    imagen: UploadFile | None = File(None),
     id_autor: int = Form(...),
     db: Session = Depends(obtener_sesion),
 ):
-    extension = Path(imagen.filename or "").suffix.lower()
-    if extension not in [".jpg", ".jpeg", ".png", ".webp"]:
-        raise HTTPException(400, "Formato de imagen no permitido")
+    nombre_archivo = None
 
-    nombre_archivo = f"{uuid.uuid4().hex}{extension}"
-    ruta_archivo = UPLOAD_DIR / nombre_archivo
+    if imagen is not None:
+        extension = Path(imagen.filename or "").suffix.lower()
 
-    with ruta_archivo.open("wb") as destino:
-        shutil.copyfileobj(imagen.file, destino)
+        if extension not in [".jpg", ".jpeg", ".png", ".webp"]:
+            raise HTTPException(400, "Formato de imagen no permitido")
 
-    ruta_publica = f"/uploads/{nombre_archivo}"
+        nombre_archivo = f"{uuid.uuid4().hex}{extension}"
+        ruta_archivo = UPLOAD_DIR / nombre_archivo
+
+        with ruta_archivo.open("wb") as destino:
+            shutil.copyfileobj(imagen.file, destino)
 
     publicacion = Blog(
         titulo=titulo,
@@ -237,6 +290,7 @@ async def crear_blog(
         estado="publicada",
         id_autor=id_autor,
     )
+
     db.add(publicacion)
     db.commit()
     db.refresh(publicacion)
@@ -249,8 +303,50 @@ async def crear_blog(
     }
 
 
-# COMENTARIOS
+@app.put("/blog/{blog_id}", response_model=BlogRespuesta)
+def actualizar_blog(
+    blog_id: int,
+    datos: BlogActualizar,
+    db: Session = Depends(obtener_sesion),
+):
+    blog = db.get(Blog, blog_id)
 
+    if blog is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Publicación no encontrada",
+        )
+
+    blog.titulo = datos.titulo.strip()
+    blog.descripcion = datos.descripcion.strip()
+    blog.tags = datos.tags.strip() if datos.tags else None
+
+    db.commit()
+    db.refresh(blog)
+
+    return blog
+
+
+@app.delete("/blog/{blog_id}")
+def eliminar_blog(
+    blog_id: int,
+    db: Session = Depends(obtener_sesion),
+):
+    blog = db.get(Blog, blog_id)
+
+    if blog is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Publicación no encontrada",
+        )
+
+    db.delete(blog)
+    db.commit()
+
+    return {"mensaje": "Publicación eliminada correctamente"}
+
+
+# COMENTARIOS
 
 @app.get(
     "/comentarios",
@@ -298,3 +394,50 @@ def crear_comentario(
     db.refresh(nuevo)
 
     return nuevo
+
+
+@app.put("/comentarios/{comentario_id}", response_model=ComentarioRespuesta)
+def actualizar_comentario(
+    comentario_id: int,
+    datos: ComentarioActualizar,
+    db: Session = Depends(obtener_sesion),
+):
+    comentario = db.get(Comentario, comentario_id)
+
+    if comentario is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Comentario no encontrado",
+        )
+
+    comentario.comentario = datos.comentario.strip()
+
+    if not comentario.comentario:
+        raise HTTPException(
+            status_code=422,
+            detail="El comentario no puede estar vacío",
+        )
+
+    db.commit()
+    db.refresh(comentario)
+
+    return comentario
+
+
+@app.delete("/comentarios/{comentario_id}")
+def eliminar_comentario(
+    comentario_id: int,
+    db: Session = Depends(obtener_sesion),
+):
+    comentario = db.get(Comentario, comentario_id)
+
+    if comentario is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Comentario no encontrado",
+        )
+
+    db.delete(comentario)
+    db.commit()
+
+    return {"mensaje": "Comentario eliminado correctamente"}

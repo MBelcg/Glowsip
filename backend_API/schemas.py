@@ -41,6 +41,12 @@ class BlogRespuesta(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class BlogActualizar(BaseModel):
+    titulo: str = Field(min_length=2, max_length=150)
+    descripcion: str = Field(min_length=1)
+    tags: str | None = Field(default=None, max_length=255)
+
+
 class ComentarioCrear(BaseModel):
     comentario: str = Field(min_length=1)
     usr_id: int
@@ -57,6 +63,14 @@ class ComentarioRespuesta(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ComentarioActualizar(BaseModel):
+    comentario: str = Field(min_length=1)
+
+
 class LoginRequest(BaseModel):
     mail: str = Field(min_length=5, max_length=150)
     password: str = Field(min_length=1, max_length=128)
+
+class CambiarPassword(BaseModel):
+    password_actual: str = Field(min_length=1, max_length=128)
+    password_nueva: str = Field(min_length=8, max_length=128)

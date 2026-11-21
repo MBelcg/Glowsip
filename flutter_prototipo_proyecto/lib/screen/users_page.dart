@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/user_service.dart';
 import '../widgets/admin_drawer.dart';
+import '../widgets/auth_background.dart';
 
 class UsersPage extends StatefulWidget {
   const UsersPage({super.key});
@@ -16,7 +17,6 @@ class _UsersPageState extends State<UsersPage> {
 
   final nombreController = TextEditingController();
   final correoController = TextEditingController();
-  final passwordController = TextEditingController();
 
   late Future<List<UserModel>> futuroUsuarios;
 
@@ -30,7 +30,6 @@ class _UsersPageState extends State<UsersPage> {
   void dispose() {
     nombreController.dispose();
     correoController.dispose();
-    passwordController.dispose();
     super.dispose();
   }
 
@@ -47,13 +46,9 @@ class _UsersPageState extends State<UsersPage> {
         .showSnackBar(SnackBar(content: Text(mensaje)));
   }
 
-  Future<void> mostrarFormulario({UserModel? usuario}) async {
-    final esEdicion = usuario != null;
-
-    nombreController.text = usuario?.nombre ?? '';
-    correoController.text = usuario?.correo ?? '';
-    passwordController.clear();
-
+  Future<void> mostrarFormulario({required UserModel usuario}) async {
+    nombreController.text = usuario.nombre;
+    correoController.text = usuario.correo;
     final resultado = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
@@ -62,7 +57,7 @@ class _UsersPageState extends State<UsersPage> {
         return StatefulBuilder(
           builder: (contextDialogo, actualizarDialogo) {
             return AlertDialog(
-              title: Text(esEdicion ? 'Editar usuario' : 'Nuevo usuario'),
+              title: const Text('Editar usuario'),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -80,14 +75,6 @@ class _UsersPageState extends State<UsersPage> {
                         labelText: 'Correo electrónico',
                       ),
                     ),
-                    if (!esEdicion)
-                      TextField(
-                        controller: passwordController,
-                        obscureText: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Contraseña',
-                        ),
-                      ),
                   ],
                 ),
               ),
@@ -104,7 +91,6 @@ class _UsersPageState extends State<UsersPage> {
                       : () async {
                           final nombre = nombreController.text.trim();
                           final correo = correoController.text.trim();
-                          final password = passwordController.text;
 
                           if (nombre.isEmpty || correo.isEmpty) {
                             ScaffoldMessenger.of(dialogContext).showSnackBar(
@@ -124,42 +110,19 @@ class _UsersPageState extends State<UsersPage> {
                             return;
                           }
 
-                          if (!esEdicion && password.length < 8) {
-                            ScaffoldMessenger.of(dialogContext).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'La contraseña debe tener al menos 8 caracteres',
-                                ),
-                              ),
-                            );
-                            return;
-                          }
-
                           actualizarDialogo(() {
                             guardando = true;
                           });
 
                           try {
-                            if (esEdicion) {
-                              final actualizado = UserModel(
-                                id: usuario.id,
-                                nombre: nombre,
-                                correo: correo,
-                                tipoUsuario: usuario.tipoUsuario,
-                              );
+                            final actualizado = UserModel(
+                              id: usuario.id,
+                              nombre: nombre,
+                              correo: correo,
+                              tipoUsuario: usuario.tipoUsuario,
+                            );
 
-                              await userService.actualizarUsuario(actualizado);
-                            } else {
-                              final nuevo = UserModel(
-                                id: 0,
-                                nombre: nombre,
-                                correo: correo,
-                                password: password,
-                                tipoUsuario: 1,
-                              );
-
-                              await userService.agregarUsuario(nuevo);
-                            }
+                            await userService.actualizarUsuario(actualizado);
 
                             if (!dialogContext.mounted) return;
 
@@ -176,7 +139,7 @@ class _UsersPageState extends State<UsersPage> {
                             });
                           }
                         },
-                  child: Text(esEdicion ? 'Actualizar' : 'Guardar'),
+                  child: const Text('Actualizar'),
                 ),
               ],
             );
@@ -188,11 +151,7 @@ class _UsersPageState extends State<UsersPage> {
     if (resultado == true && mounted) {
       recargarUsuarios();
 
-      mostrarMensaje(
-        esEdicion
-            ? 'Usuario actualizado correctamente'
-            : 'Usuario registrado correctamente',
-      );
+      mostrarMensaje('Usuario actualizado correctamente');
     }
   }
 
@@ -242,6 +201,9 @@ class _UsersPageState extends State<UsersPage> {
           ? AdminDrawer(usuario: usuarioActual, rutaActual: '/users')
           : null,
       appBar: AppBar(
+        backgroundColor: const Color(0xFFE76B8B),
+        foregroundColor: Colors.white,
+        toolbarHeight: 80,
         title: const Text('Gestión de usuarios'),
         actions: [
           IconButton(
@@ -251,93 +213,98 @@ class _UsersPageState extends State<UsersPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => mostrarFormulario(),
-        child: const Icon(Icons.add),
-      ),
-      body: FutureBuilder<List<UserModel>>(
-        future: futuroUsuarios,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: AuthBackground(
+        child: FutureBuilder<List<UserModel>>(
+          future: futuroUsuarios,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.cloud_off, size: 48),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'No se pudieron cargar los usuarios.',
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    Text('${snapshot.error}', textAlign: TextAlign.center),
-                    const SizedBox(height: 12),
-                    ElevatedButton(
-                      onPressed: recargarUsuarios,
-                      child: const Text('Reintentar'),
-                    ),
-                  ],
+            if (snapshot.hasError) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.cloud_off, size: 48),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'No se pudieron cargar los usuarios.',
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text('${snapshot.error}', textAlign: TextAlign.center),
+                      const SizedBox(height: 12),
+                      ElevatedButton(
+                        onPressed: recargarUsuarios,
+                        child: const Text('Reintentar'),
+                      ),
+                    ],
+                  ),
                 ),
+              );
+            }
+
+            final usuarios = snapshot.data ?? [];
+
+            if (usuarios.isEmpty) {
+              return const Center(child: Text('No hay usuarios registrados'));
+            }
+
+            return RefreshIndicator(
+              onRefresh: () async {
+                final nuevoFuturo = userService.obtenerUsuarios();
+
+                setState(() {
+                  futuroUsuarios = nuevoFuturo;
+                });
+
+                await nuevoFuturo;
+              },
+              child: ListView.builder(
+                padding: const EdgeInsets.all(12),
+                itemCount: usuarios.length,
+                itemBuilder: (context, index) {
+                  final usuario = usuarios[index];
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    color: const Color(0xFFFFF9FB),
+                    elevation: 3,
+                    shadowColor: const Color(0xFFF4BFD0),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: const BorderSide(color: Color(0xFFF4BFD0)),
+                    ),
+                    child: ListTile(
+                      leading: const CircleAvatar(child: Icon(Icons.person)),
+                      title: Text(usuario.nombre),
+                      subtitle: Text(usuario.correo),
+                      trailing: PopupMenuButton<String>(
+                        onSelected: (opcion) {
+                          if (opcion == 'editar') {
+                            mostrarFormulario(usuario: usuario);
+                          } else if (opcion == 'eliminar') {
+                            eliminarUsuario(usuario);
+                          }
+                        },
+                        itemBuilder: (context) => const [
+                          PopupMenuItem(value: 'editar', child: Text('Editar')),
+                          PopupMenuItem(
+                            value: 'eliminar',
+                            child: Text('Eliminar'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
             );
-          }
-
-          final usuarios = snapshot.data ?? [];
-
-          if (usuarios.isEmpty) {
-            return const Center(child: Text('No hay usuarios registrados'));
-          }
-
-          return RefreshIndicator(
-            onRefresh: () async {
-              final nuevoFuturo = userService.obtenerUsuarios();
-
-              setState(() {
-                futuroUsuarios = nuevoFuturo;
-              });
-
-              await nuevoFuturo;
-            },
-            child: ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: usuarios.length,
-              itemBuilder: (context, index) {
-                final usuario = usuarios[index];
-
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  child: ListTile(
-                    leading: const CircleAvatar(child: Icon(Icons.person)),
-                    title: Text(usuario.nombre),
-                    subtitle: Text(usuario.correo),
-                    trailing: PopupMenuButton<String>(
-                      onSelected: (opcion) {
-                        if (opcion == 'editar') {
-                          mostrarFormulario(usuario: usuario);
-                        } else if (opcion == 'eliminar') {
-                          eliminarUsuario(usuario);
-                        }
-                      },
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(value: 'editar', child: Text('Editar')),
-                        PopupMenuItem(
-                          value: 'eliminar',
-                          child: Text('Eliminar'),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          );
-        },
+          },
+        ),
       ),
     );
   }

@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../widgets/admin_drawer.dart';
 import '../widgets/user_drawer.dart';
+import '../widgets/auth_background.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -97,62 +98,209 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  Future<void> _cambiarPassword() async {
+    final actualController = TextEditingController();
+    final nuevaController = TextEditingController();
+    final confirmarController = TextEditingController();
+
+    final guardar = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cambiar contraseña'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: actualController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Contraseña actual',
+                ),
+              ),
+              TextField(
+                controller: nuevaController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Nueva contraseña',
+                ),
+              ),
+              TextField(
+                controller: confirmarController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Confirmar nueva contraseña',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (actualController.text.isEmpty ||
+                  nuevaController.text.length < 8 ||
+                  nuevaController.text != confirmarController.text) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Revisa las contraseñas. La nueva debe tener al menos 8 caracteres y coincidir con la confirmación.',
+                    ),
+                  ),
+                );
+                return;
+              }
+
+              Navigator.pop(dialogContext, true);
+            },
+            child: const Text('Actualizar'),
+          ),
+        ],
+      ),
+    );
+
+    final passwordActual = actualController.text;
+    final passwordNueva = nuevaController.text;
+
+    actualController.dispose();
+    nuevaController.dispose();
+    confirmarController.dispose();
+
+    if (guardar != true || !mounted) return;
+
+    final id = _usuario['id_usr'];
+    if (id == null) return;
+
+    try {
+      final respuesta = await http.put(
+        Uri.parse('$baseUrl/usuarios/$id/password'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'password_actual': passwordActual,
+          'password_nueva': passwordNueva,
+        }),
+      );
+
+      if (!mounted) return;
+
+      if (respuesta.statusCode != 200) {
+        final datos = jsonDecode(respuesta.body);
+        throw Exception(datos['detail'] ?? 'No se pudo cambiar la contraseña');
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Contraseña actualizada correctamente')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('No se pudo actualizar: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Mi perfil')),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFE76B8B),
+        foregroundColor: Colors.white,
+        toolbarHeight: 80,
+        title: const Text('Mi perfil'),
+        flexibleSpace: Center(
+          child: Image.asset(
+            'assets/images/icono-gsip.png',
+            height: 45,
+            fit: BoxFit.contain,
+          ),
+        ),
+      ),
       drawer: (_usuario['tip_usu'] as num? ?? 2).toInt() == 1
           ? AdminDrawer(usuario: _usuario, rutaActual: '/profile')
           : UserDrawer(usuario: _usuario, rutaActual: '/profile'),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 650),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const CircleAvatar(
-                        radius: 38,
-                        child: Icon(Icons.person, size: 42),
-                      ),
-                      const SizedBox(height: 18),
-                      TextFormField(
-                        controller: _nombre,
-                        decoration: const InputDecoration(
-                          labelText: 'Nombre completo',
-                          border: OutlineInputBorder(),
+      body: AuthBackground(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 650),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Card(
+                color: const Color(0xFFFFF9FB),
+                elevation: 3,
+                shadowColor: const Color(0xFFF4BFD0),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: const BorderSide(color: Color(0xFFF4BFD0)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const CircleAvatar(
+                          radius: 38,
+                          backgroundColor: Color(0xFFF4BFD0),
+                          child: Icon(
+                            Icons.person,
+                            size: 42,
+                            color: Color(0xFF68152F),
+                          ),
                         ),
-                        validator: (v) => v == null || v.trim().length < 2
-                            ? 'Ingresa un nombre válido'
-                            : null,
-                      ),
-                      const SizedBox(height: 14),
-                      TextFormField(
-                        controller: _correo,
-                        keyboardType: TextInputType.emailAddress,
-                        decoration: const InputDecoration(
-                          labelText: 'Correo electrónico',
-                          border: OutlineInputBorder(),
+                        const SizedBox(height: 18),
+                        TextFormField(
+                          controller: _nombre,
+                          decoration: const InputDecoration(
+                            labelText: 'Nombre completo',
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (v) => v == null || v.trim().length < 2
+                              ? 'Ingresa un nombre válido'
+                              : null,
                         ),
-                        validator: (v) => v == null || !v.contains('@')
-                            ? 'Ingresa un correo válido'
-                            : null,
-                      ),
-                      const SizedBox(height: 20),
-                      ElevatedButton.icon(
-                        onPressed: _cargando ? null : _guardar,
-                        icon: const Icon(Icons.save),
-                        label: Text(
-                          _cargando ? 'Guardando...' : 'Guardar cambios',
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          controller: _correo,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: const InputDecoration(
+                            labelText: 'Correo electrónico',
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (v) => v == null || !v.contains('@')
+                              ? 'Ingresa un correo válido'
+                              : null,
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 20),
+                        ElevatedButton.icon(
+                          onPressed: _cargando ? null : _guardar,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF246A73),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                          ),
+                          icon: const Icon(Icons.save),
+                          label: Text(
+                            _cargando ? 'Guardando...' : 'Guardar cambios',
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: _cambiarPassword,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF68152F),
+                            side: const BorderSide(color: Color(0xFF68152F)),
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                          ),
+                          icon: const Icon(Icons.lock_outline),
+                          label: const Text('Cambiar contraseña'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
